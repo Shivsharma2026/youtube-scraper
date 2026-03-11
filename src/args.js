@@ -2,7 +2,8 @@ export function parseArgs(argv = process.argv.slice(2)) {
   const options = {
     force: false,
     limit: 1,
-    channel: null
+    channel: null,
+    output: 'text'
   };
 
   for (const arg of argv) {
@@ -22,6 +23,11 @@ export function parseArgs(argv = process.argv.slice(2)) {
         throw new Error('`--limit` must be a positive integer.');
       }
       options.limit = value;
+      continue;
+    }
+
+    if (arg === '--output=json') {
+      options.output = 'json';
       continue;
     }
 

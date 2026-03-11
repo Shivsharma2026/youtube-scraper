@@ -7,15 +7,17 @@ test('parseArgs returns defaults', () => {
   assert.deepEqual(parseArgs([]), {
     force: false,
     limit: 1,
-    channel: null
+    channel: null,
+    output: 'text'
   });
 });
 
 test('parseArgs parses supported flags', () => {
-  assert.deepEqual(parseArgs(['--force', '--limit=3', '--channel=abc']), {
+  assert.deepEqual(parseArgs(['--force', '--limit=3', '--channel=abc', '--output=json']), {
     force: true,
     limit: 3,
-    channel: 'abc'
+    channel: 'abc',
+    output: 'json'
   });
 });
 

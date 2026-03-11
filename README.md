@@ -17,7 +17,21 @@ The first run that needs audio fallback will download a local `yt-dlp` binary in
 npm run scrape
 npm run scrape -- --channel=UCXXXXXXXXXXXXXXXXXXXXXX
 npm run scrape -- --limit=3 --force
+npm run scrape -- --output=json
+./scripts/run-youtube-scraper.sh --output=json --limit=1
 ```
+
+`--output=json` prints the full pipeline report as machine-readable JSON, which is useful when another agent or automation tool needs to consume the results.
+
+## OpenClaw / Agent Use
+
+For external agent runners, use the wrapper script:
+
+```bash
+./scripts/run-youtube-scraper.sh --output=json --limit=1
+```
+
+This keeps the invocation stable and returns a JSON report that includes artifact paths for the generated files.
 
 ## Output
 

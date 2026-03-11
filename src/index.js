@@ -5,6 +5,7 @@ import { OpenAiSummarizer } from './openai.js';
 import { LocalStore } from './storage.js';
 import { runPipeline } from './pipeline.js';
 import { createTranscriptFetcher } from './transcript-fetcher.js';
+import { formatReport } from './reporter.js';
 
 async function main() {
   loadEnvFile();
@@ -37,26 +38,9 @@ async function main() {
     transcriptFetcher
   });
 
-  for (const result of report.results) {
-    if (result.status === 'error') {
-      console.error(`[error] ${result.channelId}: ${result.error}`);
-      continue;
-    }
-
-    if (result.status === 'already_processed') {
-      console.log(`[skip] ${result.channelTitle || result.channelId}: latest videos already processed`);
-      continue;
-    }
-
-    if (result.status === 'no_videos') {
-      console.log(`[skip] ${result.channelId}: no uploaded videos found`);
-      continue;
-    }
-
-    console.log(
-      `[${result.status}] ${result.channelTitle || result.channelId} ${result.videoId ?? ''} ${result.artifactPath ?? ''} ${result.socialDraftPath ?? ''} ${result.transcriptTextPath ?? ''} ${result.summaryTextPath ?? ''}`.trim()
-    );
-  }
+  const output = formatReport(report, args.output);
+  const writer = report.hasErrors && args.output !== 'json' ? process.stderr : process.stdout;
+  writer.write(output);
 
   if (report.hasErrors) {
     process.exitCode = 1;
