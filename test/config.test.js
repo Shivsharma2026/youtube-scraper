@@ -19,6 +19,20 @@ test('loadConfig validates required fields', () => {
   );
 });
 
+test('loadConfig allows missing channel ids for direct video runs', () => {
+  const config = loadConfig(
+    {
+      YOUTUBE_API_KEY: 'yt',
+      OPENAI_API_KEY: 'oa',
+      CHANNEL_IDS: ''
+    },
+    '/tmp/project',
+    { requireChannels: false }
+  );
+
+  assert.deepEqual(config.channelIds, []);
+});
+
 test('loadConfig returns resolved paths and values', () => {
   const config = loadConfig(
     {

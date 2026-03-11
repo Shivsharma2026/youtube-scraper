@@ -2,6 +2,10 @@
 
 CLI pipeline that fetches the latest uploaded videos from two configured YouTube channels, retrieves captions when available, falls back to OpenAI speech-to-text when captions are unavailable, summarizes the transcript with OpenAI, and stores the result locally.
 
+On interactive runs, the CLI now prompts you to choose between:
+- searching the preset channels from `CHANNEL_IDS`, or
+- pasting a direct YouTube video link.
+
 ## Setup
 
 1. Copy `.env.example` to `.env`.
@@ -16,6 +20,7 @@ The first run that needs audio fallback will download a local `yt-dlp` binary in
 ```bash
 npm run scrape
 npm run scrape -- --channel=UCXXXXXXXXXXXXXXXXXXXXXX
+npm run scrape -- --video=https://www.youtube.com/watch?v=dQw4w9WgXcQ
 npm run scrape -- --limit=3 --force
 npm run scrape -- --output=json
 ./scripts/run-youtube-scraper.sh --output=json --limit=1

@@ -1,7 +1,8 @@
 import { fetchTranscript } from './transcript.js';
 
 export async function runPipeline({
-  channelIds,
+  channelIds = [],
+  videoIds = [],
   limit,
   force,
   youtubeClient,
@@ -12,10 +13,9 @@ export async function runPipeline({
 }) {
   await store.ensureReady();
   const processedVideoIds = await store.loadProcessedVideoIds();
-  const selectedChannelIds = channelIds;
   const results = [];
 
-  for (const channelId of selectedChannelIds) {
+  for (const channelId of channelIds) {
     try {
       const channel = await youtubeClient.getChannel(channelId);
       const videos = await youtubeClient.getLatestVideos(channel.uploadsPlaylistId, limit);
@@ -38,88 +38,17 @@ export async function runPipeline({
         continue;
       }
 
-      const transcriptResult = await transcriptFetcher(candidate.videoId);
-      const artifactBase = {
+      const result = await processVideoCandidate({
+        candidate,
         channelId,
         channelTitle: channel.title,
-        videoId: candidate.videoId,
-        videoUrl: `https://www.youtube.com/watch?v=${candidate.videoId}`,
-        title: candidate.title,
-        description: candidate.description,
-        publishedAt: candidate.publishedAt,
-        transcriptSource: transcriptResult.source || null,
-        transcriptLanguageCode: transcriptResult.languageCode,
-        processedAt: now.toISOString()
-      };
-
-      if (transcriptResult.status !== 'ok') {
-        const artifact = {
-          ...artifactBase,
-          transcript: null,
-          summaryLong: null,
-          summarySocial: null,
-          status: 'missing_transcript'
-        };
-
-        const artifactPath = await store.writeVideoArtifact(artifact);
-        await store.recordProcessedVideo(candidate.videoId, {
-          channelId,
-          status: artifact.status,
-          artifactPath,
-          processedAt: artifact.processedAt
-        });
-        processedVideoIds.add(candidate.videoId);
-        results.push({
-          channelId,
-          channelTitle: channel.title,
-          videoId: candidate.videoId,
-          status: artifact.status,
-          artifactPath
-        });
-        continue;
-      }
-
-      const summary = await summarizer.summarizeVideo({
-        title: candidate.title,
-        channelTitle: channel.title,
-        publishedAt: candidate.publishedAt,
-        videoUrl: artifactBase.videoUrl,
-        transcript: transcriptResult.transcript
+        processedVideoIds,
+        transcriptFetcher,
+        summarizer,
+        store,
+        now
       });
-
-      const artifact = {
-        ...artifactBase,
-        transcript: transcriptResult.transcript,
-        summaryLong: summary.summaryLong,
-        summarySocial: summary.summarySocial,
-        status: 'ok'
-      };
-
-      const artifactPath = await store.writeVideoArtifact(artifact);
-      const socialDraftPath = await store.writeSocialDraft(artifact);
-      const transcriptTextPath = await store.writeTranscriptText(artifact);
-      const summaryTextPath = await store.writeLongSummaryText(artifact);
-      await store.recordProcessedVideo(candidate.videoId, {
-        channelId,
-        status: artifact.status,
-        artifactPath,
-        socialDraftPath,
-        transcriptTextPath,
-        summaryTextPath,
-        processedAt: artifact.processedAt
-      });
-      processedVideoIds.add(candidate.videoId);
-
-      results.push({
-        channelId,
-        channelTitle: channel.title,
-        videoId: candidate.videoId,
-        status: artifact.status,
-        artifactPath,
-        socialDraftPath,
-        transcriptTextPath,
-        summaryTextPath
-      });
+      results.push(result);
     } catch (error) {
       results.push({
         channelId,
@@ -129,9 +58,135 @@ export async function runPipeline({
     }
   }
 
+  for (const videoId of videoIds) {
+    try {
+      const candidate = await youtubeClient.getVideo(videoId);
+      if (!force && processedVideoIds.has(candidate.videoId)) {
+        results.push({
+          channelId: candidate.channelId,
+          channelTitle: candidate.channelTitle,
+          videoId: candidate.videoId,
+          status: 'already_processed'
+        });
+        continue;
+      }
+
+      const result = await processVideoCandidate({
+        candidate,
+        channelId: candidate.channelId,
+        channelTitle: candidate.channelTitle,
+        processedVideoIds,
+        transcriptFetcher,
+        summarizer,
+        store,
+        now
+      });
+      results.push(result);
+    } catch (error) {
+      results.push({
+        channelId: videoId,
+        status: 'error',
+        error: error.message
+      });
+    }
+  }
+
   return {
     results,
     hasErrors: results.some((result) => result.status === 'error')
+  };
+}
+
+async function processVideoCandidate({
+  candidate,
+  channelId,
+  channelTitle,
+  processedVideoIds,
+  transcriptFetcher,
+  summarizer,
+  store,
+  now
+}) {
+  const transcriptResult = await transcriptFetcher(candidate.videoId);
+  const artifactBase = {
+    channelId,
+    channelTitle,
+    videoId: candidate.videoId,
+    videoUrl: `https://www.youtube.com/watch?v=${candidate.videoId}`,
+    title: candidate.title,
+    description: candidate.description,
+    publishedAt: candidate.publishedAt,
+    transcriptSource: transcriptResult.source || null,
+    transcriptLanguageCode: transcriptResult.languageCode,
+    processedAt: now.toISOString()
+  };
+
+  if (transcriptResult.status !== 'ok') {
+    const artifact = {
+      ...artifactBase,
+      transcript: null,
+      summaryLong: null,
+      summarySocial: null,
+      status: 'missing_transcript'
+    };
+
+    const artifactPath = await store.writeVideoArtifact(artifact);
+    await store.recordProcessedVideo(candidate.videoId, {
+      channelId,
+      status: artifact.status,
+      artifactPath,
+      processedAt: artifact.processedAt
+    });
+    processedVideoIds.add(candidate.videoId);
+    return {
+      channelId,
+      channelTitle,
+      videoId: candidate.videoId,
+      status: artifact.status,
+      artifactPath
+    };
+  }
+
+  const summary = await summarizer.summarizeVideo({
+    title: candidate.title,
+    channelTitle,
+    publishedAt: candidate.publishedAt,
+    videoUrl: artifactBase.videoUrl,
+    transcript: transcriptResult.transcript
+  });
+
+  const artifact = {
+    ...artifactBase,
+    transcript: transcriptResult.transcript,
+    summaryLong: summary.summaryLong,
+    summarySocial: summary.summarySocial,
+    status: 'ok'
+  };
+
+  const artifactPath = await store.writeVideoArtifact(artifact);
+  const socialDraftPath = await store.writeSocialDraft(artifact);
+  const transcriptTextPath = await store.writeTranscriptText(artifact);
+  const summaryTextPath = await store.writeLongSummaryText(artifact);
+  await store.recordProcessedVideo(candidate.videoId, {
+    channelId,
+    status: artifact.status,
+    artifactPath,
+    socialDraftPath,
+    transcriptTextPath,
+    summaryTextPath,
+    processedAt: artifact.processedAt
+  });
+  processedVideoIds.add(candidate.videoId);
+
+  return {
+    channelId,
+    channelTitle,
+    videoId: candidate.videoId,
+    status: artifact.status,
+    artifactPath,
+    socialDraftPath,
+    transcriptTextPath,
+    summaryTextPath
   };
 }
 

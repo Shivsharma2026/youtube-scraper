@@ -40,6 +40,27 @@ export class YouTubeClient {
     }));
   }
 
+  async getVideo(videoId) {
+    const payload = await this.#getJson('/videos', {
+      part: 'snippet',
+      id: videoId
+    });
+
+    if (!payload.items?.length) {
+      throw new Error(`Video not found: ${videoId}`);
+    }
+
+    const video = payload.items[0];
+    return {
+      videoId: video.id,
+      title: video.snippet.title,
+      description: video.snippet.description,
+      publishedAt: video.snippet.publishedAt,
+      channelId: video.snippet.channelId,
+      channelTitle: video.snippet.channelTitle
+    };
+  }
+
   async #getJson(pathname, params) {
     const url = new URL(`${API_BASE_URL}${pathname}`);
     for (const [key, value] of Object.entries(params)) {

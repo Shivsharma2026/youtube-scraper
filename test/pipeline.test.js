@@ -150,3 +150,53 @@ test('runPipeline records missing transcripts without summarizing', async (t) =>
   assert.equal(report.results[0].status, 'missing_transcript');
   assert.equal(summarizeCalls, 0);
 });
+
+test('runPipeline processes a directly selected video', async () => {
+  const storeState = {
+    processed: new Set()
+  };
+
+  const report = await runPipeline({
+    videoIds: ['video-99'],
+    limit: 1,
+    force: false,
+    youtubeClient: {
+      getVideo: async () => ({
+        videoId: 'video-99',
+        title: 'Standalone video',
+        description: 'desc',
+        publishedAt: '2026-03-10T10:00:00Z',
+        channelId: 'channel-9',
+        channelTitle: 'Channel Nine'
+      })
+    },
+    summarizer: {
+      summarizeVideo: async () => ({
+        summaryLong: 'Long summary',
+        summarySocial: 'Social summary'
+      })
+    },
+    transcriptFetcher: async () => ({
+      status: 'ok',
+      languageCode: 'en',
+      transcript: 'Transcript body'
+    }),
+    store: {
+      ensureReady: async () => {},
+      loadProcessedVideoIds: async () => storeState.processed,
+      writeVideoArtifact: async () => '/tmp/standalone-video.json',
+      writeSocialDraft: async () => '/tmp/standalone-video.social.txt',
+      writeTranscriptText: async () => '/tmp/standalone-video.transcript.txt',
+      writeLongSummaryText: async () => '/tmp/standalone-video.summary.txt',
+      recordProcessedVideo: async (videoId) => {
+        storeState.processed.add(videoId);
+      }
+    },
+    now: new Date('2026-03-10T12:00:00Z')
+  });
+
+  assert.equal(report.hasErrors, false);
+  assert.equal(report.results[0].status, 'ok');
+  assert.equal(report.results[0].channelId, 'channel-9');
+  assert.equal(report.results[0].videoId, 'video-99');
+});

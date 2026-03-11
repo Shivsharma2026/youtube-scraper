@@ -45,7 +45,7 @@ export function loadEnvFile(filePath = '.env', cwd = process.cwd()) {
   }
 }
 
-export function loadConfig(env = process.env, cwd = process.cwd()) {
+export function loadConfig(env = process.env, cwd = process.cwd(), { requireChannels = true } = {}) {
   const youtubeApiKey = env.YOUTUBE_API_KEY;
   const openAiApiKey = env.OPENAI_API_KEY;
   const channelIds = parseChannelIds(env.CHANNEL_IDS);
@@ -58,7 +58,9 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
   const missing = [];
   if (!youtubeApiKey) missing.push('YOUTUBE_API_KEY');
   if (!openAiApiKey) missing.push('OPENAI_API_KEY');
-  if (channelIds.length < 2) missing.push('CHANNEL_IDS (expected at least two channel IDs)');
+  if (requireChannels && channelIds.length < 2) {
+    missing.push('CHANNEL_IDS (expected at least two channel IDs)');
+  }
 
   if (missing.length > 0) {
     throw new Error(`Missing required configuration: ${missing.join(', ')}`);
